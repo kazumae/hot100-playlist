@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apple Music User Token Generator</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 640px;
+            margin: 40px auto;
+            padding: 20px;
+            color: #333;
+            line-height: 1.6;
+        }
+        h1 { font-size: 1.5rem; margin-bottom: 8px; }
+        .subtitle { color: #888; font-size: 0.9rem; margin-bottom: 24px; }
+        label { display: block; font-weight: 600; margin-bottom: 4px; }
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            resize: vertical;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            margin-top: 16px;
+        }
+        .btn-primary { background: #ff2d55; color: #fff; }
+        .btn-primary:hover { background: #e0264d; }
+        .btn-copy { background: #007aff; color: #fff; }
+        .btn-copy:hover { background: #005ecb; }
+        .token-box {
+            word-break: break-all;
+            background: #f5f5f5;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.8rem;
+            margin: 12px 0;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        #status { margin: 16px 0; font-weight: 600; }
+        .success { color: #34c759; }
+        .error { color: #ff3b30; }
+        .info { color: #888; font-size: 0.85rem; }
+        .step { margin-bottom: 24px; }
+        code { background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <h1>Apple Music User Token Generator</h1>
+    <p class="subtitle">
+        Music User Token (MUT) を取得するためのツールです。初回セットアップ時に1回だけ使用します。
+    </p>
+
+    <div class="step">
+        <label for="devToken">Step 1: Developer Token を貼り付け</label>
+        <p class="info">
+            ローカルで生成した JWT Developer Token を入力してください。
+            <br>生成方法: <code>python -c "import jwt, time; print(jwt.encode({'iss':'YOUR_TEAM_ID','iat':int(time.time()),'exp':int(time.time())+3600}, open('path/to/AuthKey.p8').read(), algorithm='ES256', headers={'kid':'YOUR_KEY_ID'}))"</code>
+        </p>
+        <textarea id="devToken" rows="4" placeholder="eyJhbGciOiJFUzI1NiIs..."></textarea>
+    </div>
+
+    <div class="step">
+        <label>Step 2: Apple Music にサインイン</label>
+        <p class="info">Apple Music のサブスクリプションが有効な Apple ID でサインインしてください。</p>
+        <button class="btn btn-primary" onclick="authorize()">Authorize Apple Music</button>
+    </div>
+
+    <div id="status"></div>
+
+    <div id="tokenDisplay" class="hidden">
+        <div class="step">
+            <label>Step 3: Music User Token をコピー</label>
+            <div class="token-box" id="userToken"></div>
+            <button class="btn btn-copy" onclick="copyToken()">Copy to Clipboard</button>
+            <p class="info">
+                このトークンを GitHub Settings &rarr; Secrets &rarr;
+                <code>APPLE_MUSIC_USER_TOKEN</code> に設定してください。
+                <br>有効期限は約6ヶ月です。期限切れ時はこのページで再取得してください。
+            </p>
+        </div>
+    </div>
+
+    <script
+        src="https://js-cdn.music.apple.com/musickit/v3/musickit.js"
+        data-web-components
+        crossorigin
+    ></script>
+    <script>
+        async function authorize() {
+            const devToken = document.getElementById("devToken").value.trim();
+            if (!devToken) {
+                setStatus("Developer Token を入力してください。", "error");
+                return;
+            }
+
+            setStatus("MusicKit を初期化中...", "");
+
+            try {
+                await MusicKit.configure({
+                    developerToken: devToken,
+                    app: {
+                        name: "Hot100 Playlist Generator",
+                        build: "1.0.0",
+                    },
+                });
+
+                const music = MusicKit.getInstance();
+                setStatus("Apple Music のサインインを待機中...", "");
+
+                const userToken = await music.authorize();
+
+                document.getElementById("userToken").textContent = userToken;
+                document.getElementById("tokenDisplay").classList.remove("hidden");
+                setStatus("取得成功!", "success");
+            } catch (err) {
+                setStatus("エラー: " + err.message, "error");
+                console.error(err);
+            }
+        }
+
+        function copyToken() {
+            const token = document.getElementById("userToken").textContent;
+            navigator.clipboard.writeText(token).then(() => {
+                setStatus("クリップボードにコピーしました!", "success");
+            });
+        }
+
+        function setStatus(message, type) {
+            const el = document.getElementById("status");
+            el.textContent = message;
+            el.className = type || "";
+        }
+    </script>
+</body>
+</html>

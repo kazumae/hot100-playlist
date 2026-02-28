@@ -1,0 +1,43 @@
+name: Weekly J-Wave HOT 100 Playlist
+
+on:
+  schedule:
+    # Sunday 15:00 UTC = Monday 00:00 JST
+    - cron: '0 15 * * 0'
+  workflow_dispatch: # Manual trigger
+
+permissions:
+  contents: write # Needed to commit cache updates
+
+jobs:
+  update-playlist:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run playlist update
+        env:
+          APPLE_MUSIC_TEAM_ID: ${{ secrets.APPLE_MUSIC_TEAM_ID }}
+          APPLE_MUSIC_KEY_ID: ${{ secrets.APPLE_MUSIC_KEY_ID }}
+          APPLE_MUSIC_PRIVATE_KEY: ${{ secrets.APPLE_MUSIC_PRIVATE_KEY }}
+          APPLE_MUSIC_USER_TOKEN: ${{ secrets.APPLE_MUSIC_USER_TOKEN }}
+        run: python src/main.py
+
+      - name: Commit updated cache
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/song_cache.json
+          git diff --staged --quiet || git commit -m "Update song cache $(date -u +%Y-%m-%d)"
+          git push
